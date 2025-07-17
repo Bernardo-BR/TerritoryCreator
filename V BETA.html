@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="light"> <!-- Define light como padrão -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TM - Territory Manager</title>
+    
+    <!-- Google Fonts: Poppins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet.js para o mapa interativo -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Leaflet.draw para as ferramentas de desenho -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+    <!-- Leaflet.Measure para medição -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-measure@3.1.0/dist/leaflet-measure.css">
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-measure@3.1.0/dist/leaflet-measure.min.js"></script>
+
+    <!-- html2canvas para exportar o mapa como imagem -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- jsPDF para exportar para PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Bibliotecas para importação de KML/KMZ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/togeojson/0.16.0/togeojson.min.js"></script>
+
+    <style>
+        /* Estilos personalizados para a aplicação */
+        body, input, button, select, textarea {
+            font-family: 'Poppins', sans-serif;
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+            cursor: default;
+            transition: filter 0.3s ease-in-out;
+        }
+        .dark #map {
+            filter: invert(1) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
+        
+        /* --- Novos Estilos para Controles de Desenho --- */
+        .leaflet-draw-toolbar a, .leaflet-control-measure a {
+            background-color: white;
+            border: 2px solid #cbd5e1; /* slate-300 */
+            color: #334155; /* slate-700 */
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s ease-in-out;
+        }
+        .leaflet-draw-toolbar a:hover, .leaflet-control-measure a:hover {
+            background-color: #f1f5f9; /* slate-100 */
+            border-color: #94a3b8; /* slate-400 */
+        }
+        .dark .leaflet-control-layers, .dark .leaflet-draw-toolbar a, .dark .leaflet-control-measure a {
+            background-color: #374151; /* gray-700 */
+            border-color: #4b5563; /* gray-600 */
+            color: #e5e7eb; /* gray-200 */
+        }
+        .dark .leaflet-control-layers:hover, .dark .leaflet-draw-toolbar a:hover, .dark .leaflet-control-measure a:hover {
+            background-color: #4b5563; /* gray-600 */
+            border-color: #6b7280; /* gray-500 */
+        }
+        .leaflet-touch .leaflet-draw-toolbar a, .leaflet-touch .leaflet-control-measure a {
+            width: 34px;
+            height: 34px;
+            line-height: 34px;
+        }
+        .leaflet-draw-actions a {
+            font-size: 14px;
+            padding: 4px 12px;
+        }
+        .leaflet-draw-actions li:first-child a {
+            border-radius: 8px 0 0 8px;
+        }
+        .leaflet-draw-actions li:last-child a {
+            border-radius: 0 8px 8px 0;
+        }
+        
+        /* Cursor de mira para o modo de desenho/edição */
+        .leaflet-container.drawing-mode {
+            cursor: crosshair !important;
+        }
+        
+        /* Estilos para o container de impressão (invisível) */
+        #print-container {
+            position: absolute;
+            left: -9999px; /* Move para fora da tela */
+            top: -9999px;
+            width: 800px; /* Largura do cartão de impressão */
+            height: 600px; /* Altura do cartão de impressão */
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            border-radius: 15px; /* Cantos arredondados */
+            overflow: hidden; /* Garante que o conteúdo seja cortado */
+            border: 2px solid #000; /* Borda preta no cartão */
+        }
+        #print-header {
+            padding: 15px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #000;
+            background-color: #fff;
+            flex-shrink: 0;
+            border-bottom: 2px solid #000; /* Linha separadora */
+        }
+        #print-map {
+            width: 100%;
+            height: 100%;
+            flex-grow: 1;
+        }
+        /* Estilos para as sugestões de pesquisa */
+        #suggestions-container {
+            max-height: 200px;
+            overflow-y: auto;
+            border-top: 1px solid #ddd;
+        }
+        .suggestion-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        .dark #suggestions-container {
+             background: #374151; /* gray-700 */
+             border-top: 1px solid #4b5563; /* gray-600 */
+        }
+        .dark .suggestion-item {
+            border-bottom: 1px solid #4b5563; /* gray-600 */
+        }
+        .suggestion-item:hover {
+            background-color: #f0f0f0;
+        }
+        .dark .suggestion-item:hover {
+            background-color: #4b5563; /* gray-600 */
+        }
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+        /* Animação de shake para erro de login */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        .animate-shake {
+            animation: shake 0.5s ease-in-out;
+        }
+        /* Estilos para arrastar e soltar */
+        .dragging {
+            opacity: 0.5;
+            background-color: #3b82f6 !important;
+        }
+        .drag-over {
+            border-top: 2px solid #3b82f6; /* blue-500 */
+        }
+        /* Custom Scrollbar Styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #d1d5db; /* gray-300 */
+            border-radius: 20px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background-color: #4b5563; /* gray-600 */
+        }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background-color: #6b7280; /* gray-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900">
+
+    <!-- Tela de Login -->
+    <div id="login-screen" class="flex items-center justify-center h-screen bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1599493345842-3a14a938511b?q=80&w=2070&auto=format&fit=crop');">
+        <div class="absolute inset-0 bg-black/50"></div>
+        <div class="relative bg-gray-800/50 backdrop-blur-lg p-8 rounded-xl shadow-2xl w-full max-w-sm border border-gray-700">
+            <h1 class="text-3xl font-bold text-center text-white mb-2">TM</h1>
+            <p class="text-center text-gray-300 mb-8">Territory Manager</p>
+            <form id="login-form">
+                <div class="space-y-4">
+                    <input type="text" id="username" placeholder="Usuário" class="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-teal-400 transition-all" required>
+                    <input type="password" id="password" placeholder="Senha" class="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-teal-400 transition-all" required>
+                </div>
+                <button type="submit" class="w-full mt-6 bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">Entrar</button>
+                <p id="login-error" class="text-red-400 text-center text-sm mt-4 h-4"></p>
+            </form>
+        </div>
+    </div>
+
+    <div id="app" class="hidden h-screen">
+        <!-- Barra Lateral de Controles (Redesenhada) -->
+        <aside class="w-96 bg-white dark:bg-gray-800 text-gray-800 dark:text-white p-4 flex flex-col shadow-lg z-20">
+            <div class="border-b border-gray-200 dark:border-gray-700 pb-4 mb-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-800 dark:text-white">TM</h1>
+                <div class="flex items-center space-x-2">
+                    <button id="theme-toggle-btn" title="Alternar tema" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                        <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                        <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                    </button>
+                     <button id="logout-btn" title="Sair" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-grow overflow-y-auto pr-2">
+                <!-- Seção de Territórios -->
+                <div class="mb-6">
+                    <h2 class="text-lg font-semibold mb-3 text-teal-500 dark:text-teal-400">Territórios</h2>
+                    <div class="flex space-x-2">
+                        <input type="text" id="territoryName" placeholder="Nome do Território" class="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                        <button id="addTerritoryBtn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold p-2 rounded transition-colors flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                        </button>
+                    </div>
+                    <div id="territoryList" class="mt-4 space-y-1">
+                        <!-- Lista de territórios será inserida aqui -->
+                    </div>
+                </div>
+
+                <!-- Seção de Mapas (Polígonos) -->
+                <div id="mapControls" class="border-t border-gray-200 dark:border-gray-700 pt-6 hidden">
+                    <h2 class="text-lg font-semibold mb-3 text-amber-500 dark:text-amber-400">Mapas em "<span id="currentTerritoryName" class="font-bold"></span>"</h2>
+                    
+                    <div class="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                         <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-md font-semibold">Lista de Itens</h3>
+                            <button id="addMapGroupBtn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold p-1.5 rounded-full transition-colors flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                            </button>
+                         </div>
+                         <div id="mapList" class="space-y-2">
+                            <!-- Lista de mapas agrupados será inserida aqui -->
+                         </div>
+                    </div>
+
+                    <!-- Seção de Importação -->
+                    <div class="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+                         <h3 class="text-md font-semibold mb-3 text-cyan-500 dark:text-cyan-400">Importar</h3>
+                         <input type="file" id="fileInput" class="hidden" accept=".kml, .kmz">
+                         <button id="importBtn" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded transition-colors text-sm flex items-center justify-center space-x-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                            <span>Importar KML/KMZ</span>
+                         </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Container do Mapa -->
+        <main class="flex-1 relative">
+            <!-- Barra de Pesquisa com Sugestões -->
+            <div id="search-wrapper" class="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] w-1/2 max-w-lg">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col text-gray-800 dark:text-white">
+                    <div class="flex space-x-2 p-2">
+                        <input type="text" id="searchInput" placeholder="Pesquisar endereço ou local..." class="w-full px-3 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button id="searchBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-4 rounded-md transition-colors flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                        </button>
+                    </div>
+                    <div id="suggestions-container"></div>
+                </div>
+            </div>
+            <div id="map"></div>
+        </main>
+    </div>
+
+    <!-- Modal Customizado -->
+    <div id="customModal" class="hidden fixed inset-0 z-[10001] flex items-center justify-center p-4">
+        <div id="modalBackdrop" class="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
+        <div class="relative bg-white dark:bg-gray-800 w-full max-w-md p-6 rounded-lg shadow-xl">
+            <div id="modalContent">
+                <!-- Conteúdo do modal será inserido dinamicamente -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de Loading -->
+    <div id="loadingModal" class="hidden fixed inset-0 z-[10001] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
+        <div class="relative bg-white dark:bg-gray-800 w-full max-w-md p-6 rounded-lg shadow-xl text-center">
+            <p id="loadingText" class="text-lg font-semibold text-gray-800 dark:text-white">Gerando imagem do mapa...</p>
+            <p class="text-gray-600 dark:text-gray-300">Por favor, aguarde.</p>
+        </div>
+    </div>
+    
+    <!-- Container de impressão invisível -->
+    <div id="print-container">
+        <div id="print-header"></div>
+        <div id="print-map"></div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginScreen = document.getElementById('login-screen');
+            const appScreen = document.getElementById('app');
+            const loginForm = document.getElementById('login-form');
+            const loginError = document.getElementById('login-error');
+
+            const users = {
+                "Jaime": "1914",
+                "Bernardo": "2045"
+            };
+
+            // Verifica se o usuário já está logado na sessão
+            if (sessionStorage.getItem('isLoggedIn') === 'true') {
+                loginScreen.classList.add('hidden');
+                appScreen.classList.remove('hidden');
+                appScreen.classList.add('flex');
+                initializeMainApp();
+            }
+
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+
+                if (users[username] && users[username] === password) {
+                    sessionStorage.setItem('isLoggedIn', 'true');
+                    loginScreen.classList.add('hidden');
+                    appScreen.classList.remove('hidden');
+                    appScreen.classList.add('flex');
+                    initializeMainApp();
+                } else {
+                    loginError.textContent = 'Usuário ou senha inválidos.';
+                    // Animação de erro
+                    loginForm.classList.add('animate-shake');
+                    setTimeout(() => loginForm.classList.remove('animate-shake'), 500);
+                }
+            });
+
+            // Função para inicializar a aplicação principal
+            function initializeMainApp() {
+                // --- VARIÁVEIS GLOBAIS E ESTADO DA APLICAÇÃO ---
+                let map;
+                let drawnItems;
+                let drawControl; // Referência para os controles de desenho
+                let territories = [];
+                let selectedTerritoryId = null;
+                let mapNameColors = {}; 
+                let mapVisibility = {}; // Novo estado para visibilidade
+                let searchMarker = null;
+                let zoomControl = null;
+                let searchTimeout = null;
+                let currentDrawingTarget = null;
+                let deleteAllControl = null;
+                let panInterval = null;
+
+                // --- GERENCIADOR DE TEMA (LIGHT/DARK) ---
+                const theme = {
+                    btn: document.getElementById('theme-toggle-btn'),
+                    moonIcon: document.getElementById('theme-icon-moon'),
+                    sunIcon: document.getElementById('theme-icon-sun'),
+                    
+                    apply(theme) {
+                        if (theme === 'dark') {
+                            document.documentElement.classList.add('dark');
+                            this.moonIcon.classList.add('hidden');
+                            this.sunIcon.classList.remove('hidden');
+                        } else {
+                            document.documentElement.classList.remove('dark');
+                            this.moonIcon.classList.remove('hidden');
+                            this.sunIcon.classList.add('hidden');
+                        }
+                    },
+
+                    toggle() {
+                        const currentTheme = localStorage.getItem('theme') || 'light';
+                        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                        localStorage.setItem('theme', newTheme);
+                        this.apply(newTheme);
+                    },
+
+                    init() {
+                        const savedTheme = localStorage.getItem('theme');
+                        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                        this.apply(savedTheme || systemTheme);
+                        this.btn.addEventListener('click', () => this.toggle());
+                    }
+                };
+                theme.init();
+
+                // --- FUNÇÕES DO MODAL CUSTOMIZADO ---
+                const modal = {
+                    el: document.getElementById('customModal'),
+                    content: document.getElementById('modalContent'),
+                    backdrop: document.getElementById('modalBackdrop'),
+                    onConfirm: null,
+                    
+                    show(htmlContent) {
+                        this.content.innerHTML = htmlContent;
+                        this.el.classList.remove('hidden');
+                        this.content.querySelector('#modalCancelBtn')?.addEventListener('click', () => this.hide());
+                        const confirmBtn = this.content.querySelector('#modalConfirmBtn');
+                        if (confirmBtn) {
+                            confirmBtn.addEventListener('click', () => {
+                                if (this.onConfirm) {
+                                    const processed = this.onConfirm();
+                                    if (processed !== false) this.hide();
+                                } else {
+                                    this.hide();
+                                }
+                            });
+                        }
+                    },
+                    hide() {
+                        this.el.classList.add('hidden');
+                        this.content.innerHTML = '';
+                        this.onConfirm = null;
+                    },
+                    confirm(title, message, onConfirm) {
+                        this.onConfirm = onConfirm;
+                        this.show(`
+                            <h3 class="text-xl font-bold text-gray-800 dark:text-white">${title}</h3>
+                            <p class="mt-2 text-gray-600 dark:text-gray-300">${message}</p>
+                            <div class="mt-6 flex justify-end space-x-3">
+                                <button id="modalCancelBtn" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">Cancelar</button>
+                                <button id="modalConfirmBtn" class="px-4 py-2 text-white rounded-md transition-colors bg-red-500 hover:bg-red-600">Excluir</button>
+                            </div>
+                        `);
+                    },
+                    alert(title, message) {
+                        this.onConfirm = null;
+                        this.show(`
+                            <h3 class="text-xl font-bold text-gray-800 dark:text-white">${title}</h3>
+                            <p class="mt-2 text-gray-600 dark:text-gray-300">${message}</p>
+                            <div class="mt-6 flex justify-end">
+                                <button id="modalConfirmBtn" class="px-4 py-2 text-white rounded-md transition-colors bg-blue-500 hover:bg-blue-600">OK</button>
+                            </div>
+                        `);
+                    },
+                    promptNewMap() {
+                        this.onConfirm = () => {
+                            const newMapNameInput = document.getElementById('newMapNameInput');
+                            const newMapColorInput = document.getElementById('newMapColorInput');
+                            const name = newMapNameInput.value.trim();
+                            if (!name) {
+                                newMapNameInput.classList.add('border-red-500');
+                                return false;
+                            }
+                            const color = newMapColorInput.value;
+                            currentDrawingTarget = name;
+                            if (mapNameColors[name] === undefined) {
+                                mapNameColors[name] = color;
+                                mapVisibility[name] = true; // Define como visível por padrão
+                            }
+                            renderUI();
+                        };
+                        this.show(`
+                            <h3 class="text-xl font-bold text-gray-800 dark:text-white">Criar Novo Mapa</h3>
+                            <div class="space-y-4 mt-4">
+                                <input type="text" id="newMapNameInput" placeholder="Nome do Mapa" class="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                                <input type="color" id="newMapColorInput" value="#FFD700" class="h-9 w-full bg-gray-100 dark:bg-gray-700 rounded border-none cursor-pointer">
+                            </div>
+                            <div class="mt-6 flex justify-end space-x-3">
+                                <button id="modalCancelBtn" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">Cancelar</button>
+                                <button id="modalConfirmBtn" class="px-4 py-2 text-white rounded-md transition-colors bg-amber-500 hover:bg-amber-600">Criar e Desenhar</button>
+                            </div>
+                        `);
+                    },
+                    promptEditColor(mapName) {
+                        this.onConfirm = () => {
+                            const editMapColorInput = document.getElementById('editMapColorInput');
+                            const newColor = editMapColorInput.value;
+                            
+                            // Atualiza a cor central
+                            mapNameColors[mapName] = newColor;
+
+                            // Atualiza a cor em todos os polígonos individuais
+                            const territory = territories.find(t => t.id === selectedTerritoryId);
+                            if (territory) {
+                                territory.maps.forEach(mapItem => {
+                                    if (mapItem.name === mapName) {
+                                        mapItem.color = newColor;
+                                    }
+                                });
+                            }
+                            
+                            saveState();
+                            renderUI();
+                        };
+                        this.show(`
+                             <h3 class="text-xl font-bold text-gray-800 dark:text-white">Editar Cor do Mapa</h3>
+                             <p class="mt-2 text-gray-600 dark:text-gray-300">Escolha a nova cor para "${mapName}".</p>
+                             <div class="flex justify-center mt-4">
+                                <input type="color" id="editMapColorInput" value="${mapNameColors[mapName]}" class="h-12 w-full bg-gray-100 dark:bg-gray-700 rounded border-none cursor-pointer">
+                             </div>
+                             <div class="mt-6 flex justify-end space-x-3">
+                                <button id="modalCancelBtn" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">Cancelar</button>
+                                <button id="modalConfirmBtn" class="px-4 py-2 text-white rounded-md transition-colors bg-blue-500 hover:bg-blue-600">Salvar</button>
+                            </div>
+                        `);
+                    },
+                    promptExport(mapData) {
+                        this.show(`
+                            <h3 class="text-xl font-bold text-gray-800 dark:text-white">Exportar Mapa "${mapData.name}"</h3>
+                            <p class="mt-2 text-gray-600 dark:text-gray-300">Escolha o formato para exportação:</p>
+                            <div class="mt-6 flex justify-center space-x-4">
+                                <button id="exportPngBtn" class="px-4 py-2 text-white rounded-md transition-colors bg-blue-500 hover:bg-blue-600">Exportar PNG</button>
+                                <button id="exportKmzBtn" class="px-4 py-2 text-white rounded-md transition-colors bg-green-500 hover:bg-green-600">Exportar KMZ</button>
+                            </div>
+                        `);
+
+                        document.getElementById('exportPngBtn').onclick = () => {
+                            this.hide();
+                            exportToImage(mapData);
+                        };
+                        document.getElementById('exportKmzBtn').onclick = () => {
+                            this.hide();
+                            exportToKMZ(mapData);
+                        };
+                    },
+                    init() {
+                        this.backdrop.addEventListener('click', () => this.hide());
+                    }
+                };
+                modal.init();
+
+                // --- INICIALIZAÇÃO DO MAPA LEAFLET ---
+                function initMap() {
+                    const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' });
+                    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri' });
+                    map = L.map('map', { zoomControl: false, layers: [streets] }).setView([-23.55052, -46.633308], 13);
+                    const baseMaps = { "Ruas": streets, "Satélite": satellite };
+                    L.control.layers(baseMaps).addTo(map);
+                    zoomControl = L.control.zoom({ position: 'bottomright' }).addTo(map);
+                    drawnItems = new L.FeatureGroup();
+                    map.addLayer(drawnItems);
+                    drawControl = new L.Control.Draw({
+                        position: 'topleft',
+                        draw: { polygon: true, rectangle: true, polyline: false, circle: false, marker: false, circlemarker: false },
+                        edit: false // Desativa a barra de edição padrão
+                    });
+                     // Controle customizado para apagar tudo
+                    L.Control.DeleteAll = L.Control.extend({
+                        onAdd: function(map) {
+                            const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+                            container.style.backgroundColor = 'white';
+                            container.style.width = '34px';
+                            container.style.height = '34px';
+                            container.style.borderRadius = '8px';
+                            container.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                            container.innerHTML = `<button title="Apagar todos os polígonos deste território" class="w-full h-full flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>`;
+                            container.onclick = function(e){
+                                e.stopPropagation();
+                                const territory = territories.find(t => t.id === selectedTerritoryId);
+                                if (territory && territory.maps.length > 0) {
+                                    modal.confirm('Apagar Tudo?', `Tem certeza que deseja apagar todos os ${territory.maps.length} polígonos deste território?`, () => {
+                                        territory.maps = [];
+                                        saveState();
+                                        renderUI();
+                                    });
+                                } else {
+                                    modal.alert('Aviso', 'Não há polígonos para apagar neste território.');
+                                }
+                            }
+                            return container;
+                        }
+                    });
+                    deleteAllControl = new L.Control.DeleteAll({ position: 'topleft' });
+
+                    map.on(L.Draw.Event.CREATED, (event) => {
+                        const { layer } = event;
+                        if (!currentDrawingTarget) {
+                            modal.alert('Aviso', 'Por favor, crie um novo mapa ou selecione um para editar antes de desenhar.');
+                            return;
+                        }
+                        const color = mapNameColors[currentDrawingTarget] || '#FFD700';
+                        addMapToTerritory(currentDrawingTarget, color, layer.toGeoJSON());
+                    });
+                    
+                    map.on('popupopen', (e) => {
+                        const removeBtn = document.getElementById('removeMarkerBtn');
+                        if (removeBtn) {
+                            removeBtn.addEventListener('click', () => {
+                                if(searchMarker) {
+                                    map.removeLayer(searchMarker);
+                                    searchMarker = null;
+                                }
+                            });
+                        }
+                    });
+                     // Eventos para cursor e rolagem de borda
+                    map.on('draw:drawstart', function (e) {
+                        map.getContainer().classList.add('drawing-mode');
+                        map.on('mousemove', handleEdgePan);
+                    });
+                    map.on('draw:drawstop', function (e) {
+                        map.getContainer().classList.remove('drawing-mode');
+                        map.off('mousemove', handleEdgePan);
+                        if (panInterval) {
+                            clearInterval(panInterval);
+                            panInterval = null;
+                        }
+                    });
+                }
+                 // --- LÓGICA DE ROLAGEM DE BORDA ---
+                function handleEdgePan(e) {
+                    const mapSize = map.getSize();
+                    const x = e.containerPoint.x;
+                    const y = e.containerPoint.y;
+                    const edgeZone = 50; // pixels
+                    const panSpeed = 15; // Velocidade da rolagem
+
+                    let panVector = L.point(0, 0);
+
+                    if (x < edgeZone) panVector.x = -panSpeed;
+                    if (x > mapSize.x - edgeZone) panVector.x = panSpeed;
+                    if (y < edgeZone) panVector.y = -panSpeed;
+                    if (y > mapSize.y - edgeZone) panVector.y = panSpeed;
+
+                    if (panVector.x !== 0 || panVector.y !== 0) {
+                        if (!panInterval) {
+                            panInterval = setInterval(() => {
+                                map.panBy(panVector, { animate: false });
+                            }, 50); // pan every 50ms
+                        }
+                    } else {
+                        if (panInterval) {
+                            clearInterval(panInterval);
+                            panInterval = null;
+                        }
+                    }
+                }
+
+                // --- LÓGICA DE GERENCIAMENTO DE DADOS ---
+                function saveState() {
+                    localStorage.setItem('tm_territories', JSON.stringify(territories));
+                    localStorage.setItem('tm_mapNameColors', JSON.stringify(mapNameColors));
+                }
+
+                function loadState() {
+                    const savedTerritories = localStorage.getItem('tm_territories');
+                    const savedColors = localStorage.getItem('tm_mapNameColors');
+                    if (savedTerritories) territories = JSON.parse(savedTerritories);
+                    if (savedColors) mapNameColors = JSON.parse(savedColors);
+                    // Inicializa a visibilidade de todos os mapas existentes como true
+                    Object.keys(mapNameColors).forEach(name => {
+                        if (mapVisibility[name] === undefined) {
+                           mapVisibility[name] = true;
+                        }
+                    });
+                }
+                
+                function addTerritory() {
+                    const name = document.getElementById('territoryName').value.trim();
+                    if (name) {
+                        territories.push({ id: Date.now(), name, maps: [] });
+                        document.getElementById('territoryName').value = '';
+                        saveState();
+                        renderUI();
+                    } else {
+                        modal.alert('Aviso', 'Por favor, insira um nome para o território.');
+                    }
+                }
+
+                function selectTerritory(territoryId) {
+                    selectedTerritoryId = territoryId;
+                    currentDrawingTarget = null; // Reseta o alvo de desenho ao trocar de território
+                    renderUI();
+                }
+                
+                function deleteTerritory(territoryId) {
+                    modal.confirm('Confirmar Exclusão', 'Tem certeza que deseja excluir este território e todos os seus mapas? Esta ação não pode ser desfeita.', () => {
+                        territories = territories.filter(t => t.id !== territoryId);
+                        if (selectedTerritoryId === territoryId) selectedTerritoryId = null;
+                        saveState();
+                        renderUI();
+                    });
+                }
+
+                function deleteMap(mapId) {
+                     modal.confirm('Confirmar Exclusão', 'Tem certeza que deseja excluir este polígono?', () => {
+                        const territory = territories.find(t => t.id === selectedTerritoryId);
+                        if(territory) {
+                            territory.maps = territory.maps.filter(m => m.id !== mapId);
+                            saveState();
+                            renderUI();
+                        }
+                    });
+                }
+
+                function deleteMapGroup(name) {
+                    modal.confirm(
+                        'Excluir Mapa?',
+                        `Tem certeza que deseja excluir o mapa "${name}" e todos os seus polígonos? Esta ação não pode ser desfeita.`,
+                        () => {
+                            const territory = territories.find(t => t.id === selectedTerritoryId);
+                            if (territory) {
+                                territory.maps = territory.maps.filter(m => m.name !== name);
+                                delete mapNameColors[name];
+                                delete mapVisibility[name];
+                                if (currentDrawingTarget === name) {
+                                    currentDrawingTarget = null;
+                                }
+                                saveState();
+                                renderUI();
+                            }
+                        }
+                    );
+                }
+
+                // --- FUNÇÃO DE EXPORTAÇÃO DE MAPA ---
+                function exportToImage(clickedMapData) {
+                    showLoadingModal('Preparando cartão de impressão...');
+                    const territory = territories.find(t => t.id === selectedTerritoryId);
+                    if (!territory) { hideLoadingModal(); return; }
+                    const mapsToExport = territory.maps.filter(m => m.name === clickedMapData.name);
+                    if (mapsToExport.length === 0) { hideLoadingModal(); return; }
+                    const printContainer = document.getElementById('print-container');
+                    const printHeader = document.getElementById('print-header');
+                    const printMapEl = document.getElementById('print-map');
+                    printHeader.textContent = clickedMapData.name;
+                    const printMap = L.map('print-map', { zoomControl: false, attributionControl: false, preferCanvas: true });
+                    const baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png').addTo(printMap);
+                    const groupToExport = new L.FeatureGroup();
+                    mapsToExport.forEach(mapData => {
+                        L.geoJSON(mapData.geojson, { style: { fillColor: mapData.color, color: mapData.color, weight: 2, fillOpacity: 0.6 } }).addTo(groupToExport);
+                    });
+                    groupToExport.addTo(printMap);
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', { pane: 'popupPane' }).addTo(printMap);
+                    printMap.invalidateSize();
+                    printMap.fitBounds(groupToExport.getBounds().pad(0.02)); // Aumenta o zoom
+                    baseLayer.on('load', () => {
+                        setTimeout(() => { 
+                            printMap.invalidateSize();
+                            requestAnimationFrame(() => {
+                                html2canvas(printContainer, { useCORS: true, allowTaint: true, logging: false, backgroundColor: null })
+                                .then(canvas => {
+                                    const link = document.createElement('a');
+                                    link.download = `${clickedMapData.name.replace(/\s+/g, '_')}.png`;
+                                    link.href = canvas.toDataURL('image/png');
+                                    link.click();
+                                }).catch(err => {
+                                    modal.alert('Erro', 'Ocorreu um erro ao gerar a imagem do mapa.');
+                                }).finally(() => {
+                                    printMap.remove();
+                                    printMapEl.innerHTML = '';
+                                    hideLoadingModal();
+                                });
+                            });
+                        }, 1500);
+                    });
+                }
+                
+                function exportToKMZ(clickedMapData) {
+                    const territory = territories.find(t => t.id === selectedTerritoryId);
+                    const mapsToExport = territory.maps.filter(m => m.name === clickedMapData.name);
+                    
+                    let kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>${clickedMapData.name}</name>`;
+
+                    mapsToExport.forEach(mapData => {
+                        const color = mapData.color.replace('#', '');
+                        const abgrColor = `a1${color.substring(4,6)}${color.substring(2,4)}${color.substring(0,2)}`;
+
+                        kmlContent += `
+    <Style id="${mapData.id}">
+      <LineStyle>
+        <color>${abgrColor}</color>
+        <width>2</width>
+      </LineStyle>
+      <PolyStyle>
+        <color>${abgrColor}</color>
+      </PolyStyle>
+    </Style>
+    <Placemark>
+      <name>${mapData.name}</name>
+      <styleUrl>#${mapData.id}</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>`;
+            
+            const coords = mapData.geojson.geometry.coordinates[0];
+            coords.forEach(coord => {
+                kmlContent += `${coord[0]},${coord[1]},0 `;
+            });
+
+            kmlContent += `
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>`;
+                    });
+
+                    kmlContent += `
+  </Document>
+</kml>`;
+                    
+                    const zip = new JSZip();
+                    zip.file("doc.kml", kmlContent);
+                    zip.generateAsync({type:"blob"}).then(function(content) {
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(content);
+                        link.download = `${clickedMapData.name.replace(/\s+/g, '_')}.kmz`;
+                        link.click();
+                    });
+                }
+
+
+                // --- FUNÇÕES DE PESQUISA DE LOCAL COM SUGESTÕES ---
+                function placeMarkerAndZoom(lat, lon, displayName) {
+                    const latLng = L.latLng(lat, lon);
+                    map.setView(latLng, 16);
+                    if (searchMarker) map.removeLayer(searchMarker);
+                    const popupContent = `<b>${displayName}</b><br><button id="removeMarkerBtn" class="mt-2 text-red-500 hover:text-red-600 text-sm">Remover Marcador</button>`;
+                    searchMarker = L.marker(latLng).addTo(map).bindPopup(popupContent).openPopup();
+                }
+
+                async function fetchSuggestions(query) {
+                    if (query.length < 3) { clearSuggestions(); return; }
+                    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
+                    try {
+                        const response = await fetch(url, { headers: { 'Accept-Language': 'pt-BR,en' } });
+                        if (!response.ok) return;
+                        const data = await response.json();
+                        renderSuggestions(data);
+                    } catch (error) { console.error('Erro ao buscar sugestões:', error); }
+                }
+
+                function renderSuggestions(suggestions) {
+                    const suggestionsContainer = document.getElementById('suggestions-container');
+                    clearSuggestions();
+                    suggestions.forEach(s => {
+                        const item = document.createElement('div');
+                        item.className = 'suggestion-item';
+                        item.textContent = s.display_name;
+                        item.onclick = () => {
+                            document.getElementById('searchInput').value = s.display_name;
+                            clearSuggestions();
+                            placeMarkerAndZoom(s.lat, s.lon, s.display_name);
+                        };
+                        suggestionsContainer.appendChild(item);
+                    });
+                }
+
+                function clearSuggestions() {
+                    document.getElementById('suggestions-container').innerHTML = '';
+                }
+
+                // --- LÓGICA DE IMPORTAÇÃO KML/KMZ ---
+                function handleFileImport(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    showLoadingModal('Importando arquivo...');
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const fileContent = event.target.result;
+                        if (file.name.endsWith('.kmz')) {
+                            JSZip.loadAsync(fileContent).then(zip => {
+                                const kmlFile = Object.keys(zip.files).find(name => name.endsWith('.kml'));
+                                if (kmlFile) return zip.file(kmlFile).async('string');
+                                throw new Error('Nenhum arquivo .kml encontrado no .kmz');
+                            }).then(processKML).catch(err => modal.alert('Erro', 'Erro ao processar o arquivo KMZ.'));
+                        } else {
+                            processKML(fileContent);
+                        }
+                    };
+                    if (file.name.endsWith('.kmz')) reader.readAsArrayBuffer(file);
+                    else reader.readAsText(file);
+                }
+                
+                function processKML(kmlText) {
+                    try {
+                        const parser = new DOMParser();
+                        const kml = parser.parseFromString(kmlText, 'text/xml');
+                        const geojson = toGeoJSON.kml(kml);
+                        if (geojson && geojson.features) {
+                            geojson.features.forEach(feature => {
+                                if (feature.geometry) {
+                                    const name = feature.properties.name || 'Mapa importado';
+                                    const defaultColor = '#3388ff';
+                                    addMapToTerritory(name, defaultColor, feature);
+                                }
+                            });
+                        }
+                    } catch (err) {
+                        modal.alert('Erro', 'Não foi possível ler o arquivo KML.');
+                    } finally {
+                        hideLoadingModal();
+                    }
+                }
+
+                function addMapToTerritory(name, color, geojson) {
+                    const territory = territories.find(t => t.id === selectedTerritoryId);
+                    if (!territory) {
+                        modal.alert('Aviso', 'Por favor, selecione um território antes de adicionar um mapa.');
+                        return;
+                    }
+                    const finalColor = mapNameColors[name] || color;
+                    if (mapNameColors[name] === undefined) mapNameColors[name] = finalColor;
+                    if (mapVisibility[name] === undefined) mapVisibility[name] = true;
+                    const mapData = { id: Date.now(), name, color: finalColor, geojson };
+                    territory.maps.push(mapData);
+                    saveState();
+                    renderUI();
+                }
+
+                // --- RENDERIZAÇÃO DA INTERFACE DO USUÁRIO ---
+                function renderUI() {
+                    const territoryList = document.getElementById('territoryList');
+                    const mapControls = document.getElementById('mapControls');
+                    const mapList = document.getElementById('mapList');
+                    const currentTerritoryName = document.getElementById('currentTerritoryName');
+                    territoryList.innerHTML = '';
+                    mapList.innerHTML = '';
+                    drawnItems.clearLayers();
+                    
+                    if (drawControl && drawControl._map) map.removeControl(drawControl);
+                    if (deleteAllControl && deleteAllControl._map) map.removeControl(deleteAllControl);
+
+                    territories.forEach(t => {
+                        const isSelected = t.id === selectedTerritoryId;
+                        const territoryElement = document.createElement('div');
+                        territoryElement.className = `p-2 rounded cursor-pointer flex justify-between items-center transition-colors text-sm ${isSelected ? 'bg-teal-500 text-white font-semibold' : 'bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-700'}`;
+                        territoryElement.innerHTML = `
+                            <span class="truncate">${t.name}</span>
+                            <button class="delete-territory-btn text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-white p-1 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                        `;
+                        territoryElement.addEventListener('click', (e) => {
+                            if (e.target.closest('.delete-territory-btn')) deleteTerritory(t.id);
+                            else selectTerritory(t.id);
+                        });
+                        territoryList.appendChild(territoryElement);
+                    });
+
+                    if (selectedTerritoryId) {
+                        mapControls.classList.remove('hidden');
+                        const territory = territories.find(t => t.id === selectedTerritoryId);
+                        currentTerritoryName.textContent = territory.name;
+                        map.addControl(drawControl);
+                        map.addControl(deleteAllControl);
+                        
+                        const groupedMaps = territory.maps.reduce((acc, map) => {
+                            acc[map.name] = acc[map.name] || [];
+                            acc[map.name].push(map);
+                            return acc;
+                        }, {});
+
+                        // Adiciona camadas visíveis ao mapa
+                        territory.maps.forEach(m => {
+                            if (mapVisibility[m.name] !== false) { // Mostra se não estiver explicitamente oculto
+                                const layer = L.geoJSON(m.geojson, { style: { fillColor: m.color, color: m.color, weight: 2, fillOpacity: 0.6 } }).bindPopup(`<b>${m.name}</b>`);
+                                layer.addTo(drawnItems);
+                            }
+                        });
+
+                        if (currentDrawingTarget && !groupedMaps[currentDrawingTarget]) {
+                            groupedMaps[currentDrawingTarget] = [];
+                        }
+
+                        Object.entries(groupedMaps).forEach(([name, maps]) => {
+                            const isDrawingTarget = name === currentDrawingTarget;
+                            const isVisible = mapVisibility[name] !== false;
+                            const groupContainer = document.createElement('div');
+                            groupContainer.className = `rounded transition-colors duration-300 ${isDrawingTarget ? 'bg-amber-200/50 dark:bg-amber-800/50' : 'bg-gray-100 dark:bg-gray-700/50'}`;
+                            groupContainer.setAttribute('draggable', true);
+                            groupContainer.dataset.mapName = name;
+
+                            const groupHeader = document.createElement('div');
+                            groupHeader.className = 'p-2 flex items-center justify-between cursor-pointer';
+                            groupHeader.innerHTML = `
+                                <div class="clickable-area flex items-center space-x-3 truncate">
+                                    <button title="Editar cor" class="color-dot w-4 h-4 rounded-full flex-shrink-0" style="background-color: ${mapNameColors[name] || '#ccc'};"></button>
+                                    <span class="map-name-span truncate font-semibold">${name}</span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">(${maps.length})</span>
+                                </div>
+                                <div class="actions-area flex items-center space-x-1">
+                                    <button title="Mostrar/Ocultar mapa" class="toggle-visibility-btn text-gray-400 dark:text-gray-500 hover:text-gray-800 dark:hover:text-white p-1 rounded-full">
+                                        <svg class="eye-open h-5 w-5 ${isVisible ? '' : 'hidden'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                        <svg class="eye-closed h-5 w-5 ${isVisible ? 'hidden' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                                    </button>
+                                    <button title="Adicionar polígono a este mapa" class="edit-map-btn text-gray-400 dark:text-gray-500 hover:text-amber-500 dark:hover:text-white p-1 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                                    <button title="Exportar este mapa" class="export-map-btn text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-white p-1 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
+                                    <button title="Excluir mapa e todos os polígonos" class="delete-group-btn text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-white p-1 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                    <button title="Mostrar/Ocultar detalhes" class="toggle-details-btn p-1 rounded-full text-gray-400 dark:text-gray-500 hover:text-gray-800 dark:hover:text-white"><svg class="w-5 h-5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                                </div>
+                            `;
+                            const detailsContainer = document.createElement('div');
+                            detailsContainer.className = 'hidden border-t border-gray-200 dark:border-gray-600 px-2 pb-2 space-y-1';
+                            if (maps.length > 0) {
+                                maps.forEach((m, index) => {
+                                    const detailElement = document.createElement('div');
+                                    detailElement.className = 'pt-2 flex items-center justify-between text-xs';
+                                    detailElement.innerHTML = `
+                                        <span class="text-gray-600 dark:text-gray-300">Polígono ${index + 1}</span>
+                                        <button class="delete-map-btn text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-white p-1 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                    `;
+                                    detailElement.querySelector('.delete-map-btn').addEventListener('click', (e) => { e.stopPropagation(); deleteMap(m.id); });
+                                    detailsContainer.appendChild(detailElement);
+                                });
+                            } else {
+                                detailsContainer.innerHTML = `<p class="text-xs text-gray-500 dark:text-gray-400 pt-2">Nenhum polígono. Clique no lápis e use as ferramentas no mapa para desenhar.</p>`;
+                            }
+                            groupHeader.querySelector('.clickable-area').addEventListener('click', (e) => {
+                                if (maps.length > 0) {
+                                    const groupToFocus = new L.FeatureGroup();
+                                    maps.forEach(m => L.geoJSON(m.geojson).addTo(groupToFocus));
+                                    map.fitBounds(groupToFocus.getBounds().pad(0.1));
+                                }
+                            });
+                            groupHeader.querySelector('.color-dot').addEventListener('click', (e) => { e.stopPropagation(); modal.promptEditColor(name); });
+                            groupHeader.querySelector('.toggle-visibility-btn').addEventListener('click', (e) => { e.stopPropagation(); mapVisibility[name] = !isVisible; renderUI(); });
+                            groupHeader.querySelector('.map-name-span').addEventListener('dblclick', (e) => {
+                                e.stopPropagation();
+                                const span = e.target;
+                                const oldName = span.textContent;
+                                const input = document.createElement('input');
+                                input.type = 'text';
+                                input.value = oldName;
+                                input.className = 'w-full bg-gray-200 dark:bg-gray-600 rounded px-1 text-sm';
+                                span.replaceWith(input);
+                                input.focus();
+
+                                const saveRename = () => {
+                                    const newName = input.value.trim();
+                                    if (newName && newName !== oldName) {
+                                        const territory = territories.find(t => t.id === selectedTerritoryId);
+                                        territory.maps.forEach(map => {
+                                            if (map.name === oldName) {
+                                                map.name = newName;
+                                            }
+                                        });
+                                        mapNameColors[newName] = mapNameColors[oldName];
+                                        mapVisibility[newName] = mapVisibility[oldName];
+                                        delete mapNameColors[oldName];
+                                        delete mapVisibility[oldName];
+                                        if (currentDrawingTarget === oldName) {
+                                            currentDrawingTarget = newName;
+                                        }
+                                        saveState();
+                                    }
+                                    renderUI(); // Re-render to show the span again
+                                };
+
+                                input.addEventListener('blur', saveRename);
+                                input.addEventListener('keydown', (e) => {
+                                    if (e.key === 'Enter') {
+                                        saveRename();
+                                    } else if (e.key === 'Escape') {
+                                        input.replaceWith(span); // Cancel edit
+                                    }
+                                });
+                            });
+                            groupHeader.querySelector('.export-map-btn').addEventListener('click', (e) => { e.stopPropagation(); modal.promptExport(maps[0]); });
+                            groupHeader.querySelector('.edit-map-btn').addEventListener('click', (e) => { e.stopPropagation(); currentDrawingTarget = name; renderUI(); });
+                            groupHeader.querySelector('.delete-group-btn').addEventListener('click', (e) => { e.stopPropagation(); deleteMapGroup(name); });
+                            groupHeader.querySelector('.toggle-details-btn').addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                detailsContainer.classList.toggle('hidden');
+                                e.currentTarget.querySelector('svg').classList.toggle('rotate-180');
+                            });
+                            groupContainer.appendChild(groupHeader);
+                            groupContainer.appendChild(detailsContainer);
+                            mapList.appendChild(groupContainer);
+                        });
+                        
+                        // Adiciona listeners de arrastar e soltar
+                        addDragAndDropListeners(mapList);
+
+                    } else {
+                        mapControls.classList.add('hidden');
+                    }
+                }
+                
+                function addDragAndDropListeners(container) {
+                    let draggedItem = null;
+
+                    container.querySelectorAll('[draggable="true"]').forEach(item => {
+                        item.addEventListener('dragstart', (e) => {
+                            draggedItem = item;
+                            setTimeout(() => item.classList.add('dragging'), 0);
+                        });
+
+                        item.addEventListener('dragend', () => {
+                            draggedItem.classList.remove('dragging');
+                            draggedItem = null;
+                        });
+
+                        item.addEventListener('dragover', (e) => {
+                            e.preventDefault();
+                            const afterElement = getDragAfterElement(container, e.clientY);
+                            const currentOver = container.querySelector('.drag-over');
+                            if (currentOver) currentOver.classList.remove('drag-over');
+                            if (afterElement == null) {
+                                // Não faz nada se estiver sobre si mesmo
+                            } else {
+                                afterElement.classList.add('drag-over');
+                            }
+                        });
+                        
+                        item.addEventListener('dragleave', (e) => {
+                             e.target.closest('.rounded').classList.remove('drag-over');
+                        });
+
+                        item.addEventListener('drop', (e) => {
+                            e.preventDefault();
+                            const afterElement = getDragAfterElement(container, e.clientY);
+                            const draggedName = draggedItem.dataset.mapName;
+                            const territory = territories.find(t => t.id === selectedTerritoryId);
+                            
+                            const draggedGroupIndex = Object.keys(territory.maps.reduce((acc, map) => {
+                                acc[map.name] = true;
+                                return acc;
+                            }, {})).indexOf(draggedName);
+
+                            if (afterElement == null) {
+                                // Arrastado para o final
+                                const itemsToMove = territory.maps.filter(m => m.name === draggedName);
+                                const otherItems = territory.maps.filter(m => m.name !== draggedName);
+                                territory.maps = [...otherItems, ...itemsToMove];
+                            } else {
+                                const afterName = afterElement.dataset.mapName;
+                                const itemsToMove = territory.maps.filter(m => m.name === draggedName);
+                                const otherItems = territory.maps.filter(m => m.name !== draggedName);
+                                const newIndex = otherItems.findIndex(m => m.name === afterName);
+                                otherItems.splice(newIndex, 0, ...itemsToMove);
+                                territory.maps = otherItems;
+                            }
+
+                            saveState();
+                            renderUI();
+                        });
+                    });
+                }
+
+                function getDragAfterElement(container, y) {
+                    const draggableElements = [...container.querySelectorAll('[draggable="true"]:not(.dragging)')];
+                    return draggableElements.reduce((closest, child) => {
+                        const box = child.getBoundingClientRect();
+                        const offset = y - box.top - box.height / 2;
+                        if (offset < 0 && offset > closest.offset) {
+                            return { offset: offset, element: child };
+                        } else {
+                            return closest;
+                        }
+                    }, { offset: Number.NEGATIVE_INFINITY }).element;
+                }
+                
+                function showLoadingModal(text) {
+                    document.getElementById('loadingText').textContent = text;
+                    document.getElementById('loadingModal').classList.remove('hidden');
+                }
+
+                function hideLoadingModal() {
+                    document.getElementById('loadingModal').classList.add('hidden');
+                }
+
+                // --- EVENT LISTENERS ---
+                document.getElementById('addTerritoryBtn').addEventListener('click', addTerritory);
+                document.getElementById('addMapGroupBtn').addEventListener('click', () => modal.promptNewMap());
+                document.getElementById('logout-btn').addEventListener('click', () => {
+                    sessionStorage.removeItem('isLoggedIn');
+                    window.location.reload();
+                });
+                const searchInput = document.getElementById('searchInput');
+                searchInput.addEventListener('input', () => {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => fetchSuggestions(searchInput.value), 300);
+                });
+                document.getElementById('searchBtn').addEventListener('click', () => fetchSuggestions(searchInput.value));
+                document.getElementById('importBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+                document.getElementById('fileInput').addEventListener('change', handleFileImport);
+
+                // --- INICIALIZAÇÃO DA APLICAÇÃO ---
+                initMap();
+                loadState();
+                renderUI();
+            }
+        });
+    </script>
+</body>
+</html>
