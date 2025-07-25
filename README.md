@@ -5,9 +5,9 @@
 
 
 ### **📌 Sobre o Projeto**
-O Territory Manager é uma ferramenta de desktop projetada para simplificar a criação, organização e visualização de mapas e territórios. Ideal para planeamento de vendas, logística, estudos geográficos ou qualquer atividade que exija a delimitação de áreas em um mapa.
+O Territory Manager é uma ferramenta de desktop projetada para simplificar a criação, organização e visualização de mapas e territórios. Ideal para a criação de territórios de qualquer congregação.
 
-Construído como um aplicativo de desktop a partir de uma base web, ele oferece uma experiência rápida e focada, sem a necessidade de um navegador.
+Construído como um aplicativo de desktop a partir de uma base web, ele oferece uma experiência rápida e focada, com ou sem um navegador web.
 
 ### **✨ Funcionalidades Principais**
 - **Gestão de Territórios e Mapas**: Crie e organize territórios. Adicione múltiplos mapas (grupos de polígonos) a cada território com cores personalizadas para uma melhor organização visual.
