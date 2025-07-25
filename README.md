@@ -17,11 +17,13 @@ Construído como um aplicativo de desktop a partir de uma base web, ele oferece 
 - **Importação e Exportação**:
 
     - **Importe ficheiros** `.KML` e `.KMZ` existentes para dentro dos seus territórios.
-      <img width="384" height="112" alt="SCREENSHOT 2" src="https://github.com/user-attachments/assets/53ea9402-5dc4-4223-904a-9121d6d2ad4a" />
+
+       <img width="384" height="112" alt="SCREENSHOT 2" src="https://github.com/user-attachments/assets/53ea9402-5dc4-4223-904a-9121d6d2ad4a" />
 
 
     - **Exporte mapas individuais** para os formatos `.PNG` (imagem) ou `.KMZ`.
-      <img width="1366" height="768" alt="SCREENSHOT 3" src="https://github.com/user-attachments/assets/88b9b842-f8f3-4919-8163-956597bd46f6" />
+
+       <img width="1366" height="768" alt="SCREENSHOT 3" src="https://github.com/user-attachments/assets/88b9b842-f8f3-4919-8163-956597bd46f6" />
            <img width="800" height="600" alt="MAP_1" src="https://github.com/user-attachments/assets/04594951-ff9e-45bf-97b3-508cea5da3a8" />
 
 
